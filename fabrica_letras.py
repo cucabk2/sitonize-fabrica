@@ -72,7 +72,11 @@ INVENTADA = re.compile(r'^\W*(m[úu]sica|music|aplausos|applause)\W*$|legenda|le
 
 
 def escreve(modelo, wav, idioma=None):
-    seg, info = modelo.transcribe(wav, language=idioma, vad_filter=False, condition_on_previous_text=False, beam_size=5,
+    import wave
+    import numpy as np
+    with wave.open(wav, 'rb') as w:
+        audio = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
+    seg, info = modelo.transcribe(audio, language=idioma, vad_filter=False, condition_on_previous_text=False, beam_size=5,
                                   word_timestamps=True, hallucination_silence_threshold=1.5, temperature=[0.0, 0.2, 0.4],
                                   compression_ratio_threshold=2.0, no_speech_threshold=0.6, chunk_length=15)
     linhas = []
@@ -155,7 +159,7 @@ def main():
             ok = False
         with db.cursor() as c:
             c.execute("update pedidos_letra set estado=%s where chave=%s", ('pronto' if ok else 'novo', p[0]))
-            if ok or SO_COM_AUDIO:
+            if ok:
                 c.execute("delete from pedidos_audio where chave=%s", (p[0],))  # não guarda áudio depois de usar
             c.execute("delete from pedidos_audio where criado < now() - interval '2 days'")
         db.commit()
