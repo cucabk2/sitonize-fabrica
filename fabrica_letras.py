@@ -31,6 +31,7 @@ def baixa_original(titulo, artista, dur_ms, pasta):
     consulta = limpa(titulo) + ' ' + artista
     r = subprocess.run(['yt-dlp', '--dump-json', '--flat-playlist', f'ytsearch6:{consulta} audio oficial'],
                        capture_output=True, text=True, encoding='utf-8')
+    print('  busca:', r.returncode, len(r.stdout.splitlines()), (r.stderr or '')[-400:])
     cand = []
     for l in r.stdout.splitlines():
         try:
@@ -48,8 +49,10 @@ def baixa_original(titulo, artista, dur_ms, pasta):
     cand.sort(key=lambda x: x[0])
     j = cand[0][1]
     saida = os.path.join(pasta, 'a.%(ext)s')
-    subprocess.run(['yt-dlp', '-f', 'bestaudio', '-o', saida, 'https://www.youtube.com/watch?v=' + j['id']], check=True,
-                   capture_output=True)
+    d = subprocess.run(['yt-dlp', '-f', 'bestaudio', '-o', saida, 'https://www.youtube.com/watch?v=' + j['id']], capture_output=True, text=True)
+    if d.returncode:
+        print('  download falhou:', (d.stderr or '')[-500:])
+        return None, 0
     bruto = [f for f in os.listdir(pasta) if f.startswith('a.')][0]
     wav = os.path.join(pasta, 'a16.wav')
     subprocess.run(['ffmpeg', '-y', '-i', os.path.join(pasta, bruto), '-ac', '1', '-ar', '16000', wav], check=True, capture_output=True)
