@@ -1,0 +1,46 @@
+name: Fabrica de letras
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: fabrica
+  cancel-in-progress: false
+jobs:
+  letras:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: sudo apt-get install -y ffmpeg >/dev/null
+      - name: Tem pedido?
+        id: fila
+        env:
+          DBPASS: ${{ secrets.DBPASS }}
+        run: |
+          python - <<'P' >> "$GITHUB_OUTPUT"
+          import os, psycopg2
+          db = psycopg2.connect(host='aws-1-sa-east-1.pooler.supabase.com', port=5432, user='postgres.soyxccghiqpgrjdogqmw', password=os.environ['DBPASS'], dbname='postgres', sslmode='require')
+          c = db.cursor()
+          c.execute("select count(*) from pedidos_letra p where estado='novo' and tentativas < 3 and not exists (select 1 from letras_cache l where l.chave = p.chave)")
+          print('n=%d' % c.fetchone()[0])
+          P
+      - uses: actions/cache@v4
+        if: steps.fila.outputs.n != '0'
+        with:
+          path: ~/.cache/huggingface
+          key: whisper-large-v3
+      - name: Escreve as letras
+        if: steps.fila.outputs.n != '0'
+        env:
+          DBPASS: ${{ secrets.DBPASS }}
+          THREADS: '4'
+          COOKIES: ${{ secrets.YT_COOKIES }}
+        run: |
+          if [ -n "$COOKIES" ]; then echo "$COOKIES" > cookies.txt; fi
+          python fabrica_letras.py --uma

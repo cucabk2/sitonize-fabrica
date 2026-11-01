@@ -1,0 +1,3 @@
+faster-whisper
+psycopg2-binary
+yt-dlp
