@@ -76,6 +76,16 @@ def escreve(modelo, wav, idioma=None):
     import numpy as np
     with wave.open(wav, 'rb') as w:
         audio = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
+    if not idioma:
+        # o Whisper erra o idioma em trechos com pouca voz (hino virou "russo"); sem certeza forte, assume português
+        try:
+            lg, pr, todas = modelo.detect_language(audio)
+            probs = dict(todas)
+            idioma = lg if lg in ('pt', 'en', 'es') and pr >= 0.85 and probs.get('pt', 0) < 0.2 else 'pt'
+            print('  idioma detectado', lg, round(pr, 2), '-> usando', idioma)
+        except Exception as e:
+            print('  detecção de idioma falhou:', e)
+            idioma = 'pt'
     seg, info = modelo.transcribe(audio, language=idioma, vad_filter=False, condition_on_previous_text=False, beam_size=5,
                                   word_timestamps=True, hallucination_silence_threshold=1.5, temperature=[0.0, 0.2, 0.4],
                                   compression_ratio_threshold=2.0, no_speech_threshold=0.6, chunk_length=15)
