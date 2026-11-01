@@ -51,9 +51,14 @@ def baixa_original(titulo, artista, dur_ms, pasta):
     cand.sort(key=lambda x: x[0])
     j = cand[0][1]
     saida = os.path.join(pasta, 'a.%(ext)s')
-    d = subprocess.run(['yt-dlp', '-f', 'bestaudio', '-o', saida, 'https://www.youtube.com/watch?v=' + j['id']], capture_output=True, text=True)
+    d = None
+    for cli in ('android_vr', 'tv', 'mweb', 'ios', 'web_safari', 'tv_embedded'):
+        d = subprocess.run(['yt-dlp', '--extractor-args', 'youtube:player_client=' + cli, '-f', 'bestaudio', '-o', saida,
+                            'https://www.youtube.com/watch?v=' + j['id']], capture_output=True, text=True)
+        print('  cliente', cli, '->', d.returncode, (d.stderr or '').strip().splitlines()[-1][:160] if d.returncode and d.stderr else '')
+        if d.returncode == 0:
+            break
     if d.returncode:
-        print('  download falhou:', (d.stderr or '')[-500:])
         return None, 0
     bruto = [f for f in os.listdir(pasta) if f.startswith('a.')][0]
     wav = os.path.join(pasta, 'a16.wav')
