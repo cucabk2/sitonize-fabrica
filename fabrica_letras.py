@@ -38,6 +38,7 @@ def baixa_original(titulo, artista, dur_ms, pasta):
             j = json.loads(l)
         except Exception:
             continue
+        print('   cand:', j.get('duration'), j.get('title'))
         if re.search(r'karaok|instrumental|playback|cover|sem voz', (j.get('title') or ''), re.I):
             continue
         d = (j.get('duration') or 0) * 1000
@@ -45,6 +46,7 @@ def baixa_original(titulo, artista, dur_ms, pasta):
             continue
         cand.append((abs(d - dur_ms) if dur_ms and d else 0, j))
     if not cand:
+        print('  sem candidato (dur_ms=%s)' % dur_ms)
         return None, 0
     cand.sort(key=lambda x: x[0])
     j = cand[0][1]
