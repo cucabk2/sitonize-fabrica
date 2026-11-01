@@ -27,7 +27,7 @@ jobs:
           import os, psycopg2
           db = psycopg2.connect(host='aws-1-sa-east-1.pooler.supabase.com', port=5432, user='postgres.soyxccghiqpgrjdogqmw', password=os.environ['DBPASS'], dbname='postgres', sslmode='require')
           c = db.cursor()
-          c.execute("select count(*) from pedidos_letra p where estado='novo' and tentativas < 3 and not exists (select 1 from letras_cache l where l.chave = p.chave)")
+          c.execute("select count(*) from pedidos_letra p where estado='novo' and tentativas < 3 and not exists (select 1 from letras_cache l where l.chave = p.chave) and exists (select 1 from pedidos_audio a where a.chave = p.chave)")
           print('n=%d' % c.fetchone()[0])
           P
       - uses: actions/cache@v4
@@ -40,6 +40,7 @@ jobs:
         env:
           DBPASS: ${{ secrets.DBPASS }}
           THREADS: '4'
+          SO_COM_AUDIO: '1'
           COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           if [ -n "$COOKIES" ]; then echo "$COOKIES" > cookies.txt; fi

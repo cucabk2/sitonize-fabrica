@@ -7,11 +7,12 @@ e a letra vai para `letras_cache`, de onde todos os celulares leem.
 Uso:  python fabrica_letras.py          (fica em loop)
       python fabrica_letras.py --uma    (processa o que houver e sai)
 """
-import json, os, re, subprocess, sys, tempfile, time, unicodedata
+import base64, json, os, re, subprocess, sys, tempfile, time, unicodedata
 import psycopg2
 from faster_whisper import WhisperModel
 
 SENHA = os.environ.get('DBPASS') or open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.dbpass')).read().strip()
+SO_COM_AUDIO = bool(os.environ.get('SO_COM_AUDIO'))  # na nuvem: só pedidos cujo celular já deixou o áudio
 MODELO = os.environ.get('MODELO', 'large-v3')
 MARCA_KARAOKE = re.compile(r'karaok|instrumental|playback|play back|sem voz|backing track|minus one|sing along|\bletra\b|lyrics|oficial|official|audio|áudio|ao vivo|clipe|video|vídeo|\([^)]*\)|\[[^\]]*\]', re.I)
 
@@ -83,10 +84,30 @@ def escreve(modelo, wav, idioma=None):
     return linhas, info.language
 
 
+def audio_do_banco(db, chave, pasta):
+    """O celular que pediu a letra deixa o áudio da gravação original no banco (servidor não consegue baixar do YouTube)."""
+    with db.cursor() as c:
+        c.execute("select b64, container from pedidos_audio where chave=%s", (chave,))
+        r = c.fetchone()
+    if not r:
+        return None
+    bruto = os.path.join(pasta, 'a.' + (r[1] or 'bin'))
+    with open(bruto, 'wb') as f:
+        f.write(base64.b64decode(r[0]))
+    wav = os.path.join(pasta, 'a16.wav')
+    subprocess.run(['ffmpeg', '-y', '-i', bruto, '-ac', '1', '-ar', '16000', wav], check=True, capture_output=True)
+    return wav
+
+
 def processa(db, modelo, p):
     chave, video, titulo, artista, dur = p
     with tempfile.TemporaryDirectory() as pasta:
-        wav, dur_orig = baixa_original(titulo, artista, dur, pasta)
+        wav = audio_do_banco(db, chave, pasta)
+        dur_orig = 0
+        if wav:
+            print('  áudio veio do celular')
+        else:
+            wav, dur_orig = baixa_original(titulo, artista, dur, pasta)
         if not wav:
             return False
         linhas, idioma = escreve(modelo, wav)
@@ -113,7 +134,9 @@ def main():
         db = conecta()
         with db.cursor() as c:
             c.execute("select chave, video, titulo, artista, dur_ms from pedidos_letra where estado='novo' and tentativas < 3 "
-                      "and not exists (select 1 from letras_cache l where l.chave = pedidos_letra.chave) order by criado limit 1")
+                      "and not exists (select 1 from letras_cache l where l.chave = pedidos_letra.chave) "
+                      + ("and exists (select 1 from pedidos_audio a where a.chave = pedidos_letra.chave) " if SO_COM_AUDIO else "")
+                      + "order by criado limit 1")
             p = c.fetchone()
         if not p:
             db.close()
@@ -132,6 +155,9 @@ def main():
             ok = False
         with db.cursor() as c:
             c.execute("update pedidos_letra set estado=%s where chave=%s", ('pronto' if ok else 'novo', p[0]))
+            if ok or SO_COM_AUDIO:
+                c.execute("delete from pedidos_audio where chave=%s", (p[0],))  # não guarda áudio depois de usar
+            c.execute("delete from pedidos_audio where criado < now() - interval '2 days'")
         db.commit()
         db.close()
 
