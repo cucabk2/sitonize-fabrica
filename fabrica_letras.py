@@ -68,7 +68,7 @@ def baixa_original(titulo, artista, dur_ms, pasta):
 
 
 # frases que o Whisper inventa em trechos sem voz (créditos de legenda, "obrigado por assistir"...)
-INVENTADA = re.compile(r'^\W*(m[úu]sica|music|aplausos|applause)\W*$|legenda|legendas|obrigad[oa] por assistir|inscreva|amara\.org|tradu[çc][ãa]o|subt[íi]tulos?|www\.|\.com', re.I)
+INVENTADA = re.compile(r'[Ѐ-ӿ؀-ۿ぀-ヿ一-鿿가-힯]|god bless you|thank you for watching|thanks for watching|^\W*(m[úu]sica|music|aplausos|applause)\W*$|legenda|legendas|obrigad[oa] por assistir|inscreva|amara\.org|tradu[çc][ãa]o|subt[íi]tulos?|www\.|\.com', re.I)
 
 
 def escreve(modelo, wav, idioma=None):
